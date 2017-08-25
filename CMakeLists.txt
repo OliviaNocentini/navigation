@@ -120,15 +120,14 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
+  include/navigation/
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
  add_library(${PROJECT_NAME}
-   
-   src/navig.cpp
+   src/vel_cont.cpp
  )
 
 ## Add cmake target dependencies of the library
@@ -140,7 +139,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node 
- src/navig.cpp
+ src/vel_cont.cpp
  )
 
 ## Rename C++ executable without prefix
