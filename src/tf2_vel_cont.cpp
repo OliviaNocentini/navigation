@@ -1,3 +1,13 @@
+#include <ros/ros.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
+#include <mavros_msgs/CommandBool.h>
+#include <mavros_msgs/SetMode.h>
+#include <mavros_msgs/State.h>
+#include <math.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_listener.h>
 #include "vel_cont.hpp"
 #include "angles/angles.h"
 
@@ -8,33 +18,15 @@
 
 geometry_msgs::Pose desired_goal_pose;
 
-void quat2eul(float* roll,float* pitch,float* yaw,float q0,float q1,float q2,float q3 )
-{
-  //roll 
-  float sinr = (2*(q0*q1+q2*q3));
-  float cosr = 1-2*(pow(q1,2)+pow(q2,2));
-  *roll = atan2(sinr, cosr);
-  
-  //pitch
-   float sinp = 2*(q0*q2-q3*q1);
-   if (fabs(sinp) >= 1)
-     *pitch = copysign(M_PI / 2, sinp); // use 90 degrees if out of range //copysign function that dà come valore il primo float con il segno del secondo.
-   else
-     *pitch = asin(sinp);
-
-  //yaw
-  float siny = 2*(q0*q3+q1*q2);
-  float cosy = 1-2*(pow(q2,2)+pow(q3,2));
-  *yaw = atan2(siny,cosy);  
-}
+geometry_msgs::TransformStamped transformStamped;
 
 //costruttore della classe 
 
 Movements::Movements(ros::NodeHandle& nh)
 {
   // topic subscriber 
-  pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
-    ("mavros/local_position/pose", 10, &Movements::pose_cb, this);
+  //pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
+  //  ("mavros/local_position/pose", 10, &Movements::pose_cb, this);
 
   // service subscriber
   set_vel_pub = nh.advertise<geometry_msgs::TwistStamped>
@@ -49,22 +41,22 @@ Movements::Movements(ros::NodeHandle& nh)
 
 void Movements::evaluate_error(float linear_error[3],float angular_error[3])
 {
-  float x=current_pose.pose.position.x;
-  float y=current_pose.pose.position.y;
-  float z=current_pose.pose.position.z;
+  float x=transformStamped.transform.translation.x;
+  float y=transformStamped.transform.translation.y;
+  float z=transformStamped.transform.translation.z;
   
   // get current attitude
   float roll(0),pitch(0),yaw;
-  float q0=current_pose.pose.orientation.x;
-  float q1=current_pose.pose.orientation.y;
-  float q2=current_pose.pose.orientation.z;
-  float q3=current_pose.pose.orientation.w;
+  float q0=transformStamped.transform.rotation.x;
+  float q1=transformStamped.transform.rotation.y;
+  float q2=transformStamped.transform.rotation.z;
+  float q3=transformStamped.transform.rotation.w;
   
   //unlock 
   // transform quaternion to euler
   //quat2eul(&roll, &pitch, &yaw, q0, q1, q2, q3);
     
-  yaw= tf::getYaw(current_pose.pose.orientation);
+  yaw= tf::getYaw(transformStamped.transform.rotation);
   
   float x_des = desired_pos[0];
   float y_des = desired_pos[1];
@@ -162,7 +154,7 @@ void Movements::set_command()
 }
 
 /////////////////////////////////////////////////////////////////////////
-void Movements::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
+/*void Movements::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
   //lock
   current_pose = *msg;
@@ -171,19 +163,19 @@ void Movements::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
   //if (this->norma_linear_error()< toll)
   
   //unlock
-}
+}*/
 
 /////////////////////////////////////////////////////////////////////////
 void Movements::goal_cb(const geometry_msgs::Pose::ConstPtr& msg)
 {
   
-  double yaw = tf::getYaw(msg->orientation);
+  double yaw = tf::getYaw(transformStamped.transform.rotation);
   
   // transform quaternion to euler
   //quat2eul(&roll, &pitch, &yaw, q0, q1, q2, q3);
-  this->set_desired_pos(msg->position.x,msg->position.y, msg->position.z, 0, 0, yaw);
+  this->set_desired_pos(transformStamped.transform.translation.x,transformStamped.transform.translation.y, transformStamped.transform.translation.z, 0, 0, yaw);
   
-  std::cout << "desired pose: " << msg->position.x << ", " << msg->position.y << ", " << msg->position.z << ", " <<  yaw << std::endl;
+  std::cout << "desired pose: " << transformStamped.transform.translation.x << ", " << transformStamped.transform.translation.y << ", " << transformStamped.transform.translation.z << ", " <<  yaw << std::endl;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -197,7 +189,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg)
 int main(int argc, char **argv)
 {
   //Inizializzo nodo
-  ros::init(argc, argv, "frames_node");
+  ros::init(argc, argv, "tf2_vel_cont_node");
   ros::NodeHandle nh;
     
   //debug
@@ -224,14 +216,14 @@ int main(int argc, char **argv)
   int count=0;
   
   // wait for FCU connection
-  while(ros::ok() && current_state.connected){
+ /* while(ros::ok() && current_state.connected){
     ros::spinOnce();
     rate.sleep();
     ROS_INFO("State Not Connected");
 
-  }
+  }*/
     
-  ROS_INFO("Position Selected");
+ // ROS_INFO("Position Selected");
 
   mavros_msgs::SetMode offb_set_mode;
   offb_set_mode.request.custom_mode = "OFFBOARD";
@@ -241,6 +233,10 @@ int main(int argc, char **argv)
 
   ros::Time last_request = ros::Time::now();
 
+  tf2_ros::Buffer tfBuffer;
+  tf2_ros::TransformListener tfListener(tfBuffer);
+  
+  
   while(ros::ok())
     {
       if( current_state.mode != "OFFBOARD" &&
@@ -267,25 +263,25 @@ int main(int argc, char **argv)
             }
         }
     
-   
-/*    
-      if(count==0)
-      {
-	std::cout <<"sono dentro primo count" <<std::endl;
-	mov.set_desired_pos(1,0,1,0,0,0);
-        if (mov.norma_linear_error()< toll)
-          count++;
-      }
-      else if(count==1)
-      {
-	
-	std::cout <<"sono dentro secondo count" <<std::endl;
-	mov.set_desired_pos(0,0,1,0,0,1.57);
-      }*/
-      /*
-      else if(count==2)
-	mov.set_desired_pos(1,0,1,0,0,0);
-      */	
+   transformStamped.header.stamp = ros::Time::now();
+  
+  //set the name of the parent frame of the link we're creating and the name of the child
+  
+        transformStamped.header.frame_id = "ENU";
+        transformStamped.child_frame_id = "base_link";
+    try{
+      transformStamped = tfBuffer.lookupTransform("ENU", "base_link",
+                               ros::Time(0));
+    }
+    catch (tf2::TransformException &ex) {
+      ROS_WARN("%s",ex.what());
+      ros::Duration(1.0).sleep();
+      continue;
+    }
+    
+    std::cout <<"Tx"<<" "<< transformStamped.transform.translation.x <<" "<<"Ty"<<" " << transformStamped.transform.translation.y <<" "<<"Tz"<<" " << transformStamped.transform.translation.z <<std::endl;
+    std::cout << " prova" <<std::endl;
+    
       mov.set_command();
       ros::spinOnce();
       rate.sleep();

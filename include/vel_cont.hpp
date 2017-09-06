@@ -5,21 +5,26 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>
 #include <math.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_listener.h>
 
 class Movements
 {
   private:
     
     
-    ros::Subscriber pose_sub;
+   // ros::Subscriber pose_sub;
     ros::Subscriber goal_sub;
     
     ros::Publisher set_vel_pub;
 
-    void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
+   // void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
     void goal_cb(const geometry_msgs::Pose::ConstPtr& msg);
     
-    geometry_msgs::PoseStamped current_pose;
+   // geometry_msgs::PoseStamped current_pose;
+    
+   
     
     float desired_pos[3];
     float desired_att[3];

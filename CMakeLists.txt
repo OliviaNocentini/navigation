@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  tf2
+  tf2_ros
 )
 
 find_package(Eigen REQUIRED)
@@ -121,13 +123,14 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include/navigation/
+ 
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
  add_library(${PROJECT_NAME}
-   src/vel_cont.cpp
+   src/tf2_vel_cont.cpp
  )
 
 ## Add cmake target dependencies of the library
@@ -138,9 +141,11 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(${PROJECT_NAME}_node 
- src/vel_cont.cpp
- )
+
+ add_executable(${PROJECT_NAME}_node
+ src/tf2_vel_cont.cpp
+)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
