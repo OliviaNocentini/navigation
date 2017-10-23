@@ -22,7 +22,7 @@
 
 #define TRESHOLD_WP (0.1)
 
-float diff=0.5;
+float diff=1.5;
 
 
 nav_msgs::Odometry current_pose_iRobot;
@@ -76,7 +76,7 @@ void Movements::evaluate_error(float linear_error[3],float angular_error[3])
   geometry_msgs::PoseStamped fov_drone;
   
   fov_drone.header.frame_id = "iris/base_link";
-  fov_drone.header.stamp = ros::Time();
+  fov_drone.header.stamp = ros::Time(0);
   fov_drone.pose.position.x=z_drone*tan(alpha);
   fov_drone.pose.position.y=0;
   fov_drone.pose.position.z=-z_drone;
@@ -96,13 +96,25 @@ void Movements::evaluate_error(float linear_error[3],float angular_error[3])
   
   // scrivo le coordinate del fov rispetto al sistema ENU
   
+
+  
   try{
+    
+   listener_fov.waitForTransform(
+  fov_drone.header.frame_id,"ENU",fov_drone.header.stamp,ros::Duration(5));
+    
+   // std:: cout <<" base_link to enu init " <<std::endl;
+    
       listener_fov.transformPose("ENU",fov_drone, fov_enu);
+      
+   //   std:: cout <<" base_link to enu end " <<std::endl;
 
     }
     catch(tf::TransformException& ex){
         ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
     }
+
+    
  
   
   //la posizione desiderata è quella che assume il centro del mio roomba.
@@ -127,7 +139,7 @@ void Movements::evaluate_error(float linear_error[3],float angular_error[3])
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-geometry_msgs::PoseStamped Movements::fov_evaluation()
+float Movements::fov_evaluation()
 
 {
 
@@ -168,7 +180,7 @@ geometry_msgs::PoseStamped Movements::fov_evaluation()
         ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
     }
 
-    return fov_enu;
+    return fov_enu.pose.position.x;
     
     
   
@@ -208,7 +220,7 @@ float Movements::norma_angular_error()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Movements::set_command()
+geometry_msgs::TwistStamped Movements::set_command()
 {
   
  
@@ -241,7 +253,7 @@ void Movements::set_command()
   std::cout << "angular = " << command.twist.angular.x << ", " << command.twist.angular.y << ", " << command.twist.angular.z << std::endl;
   set_vel_pub.publish(command);
   
-  return ;  
+  return command;  
 
 }
 
@@ -264,7 +276,7 @@ geometry_msgs::TwistStamped Movements::set_command_second()
   
   set_pose.pose.position.x=0;
   set_pose.pose.position.y=0;
-  set_pose.pose.position.z=2;
+  set_pose.pose.position.z=1;
   
   geometry_msgs::TwistStamped com;
   
@@ -323,7 +335,7 @@ int main(int argc, char **argv)
   
    geometry_msgs::PoseStamped set_pose; 
    std::cout << "Definisco fino a dove si deve alzare il mio drone" <<std::endl;
-   std::vector<float> p0={0,0,2};
+   std::vector<float> p0={0,0,1};
    set_pose.pose.position.x=p0[0];
    set_pose.pose.position.y=p0[1];
    set_pose.pose.position.z=p0[2];
@@ -332,7 +344,7 @@ int main(int argc, char **argv)
    
   // float yaw= tf::getYaw(transformStamped.transform.rotation);
    
-  typedef enum {SET_ALTITUDE, FIND_ROOMBA} tasks;
+  typedef enum {SET_ALTITUDE, FIND_ROOMBA,FOLLOW_ROOMBA} tasks;
   tasks current_task = SET_ALTITUDE;
   
 
@@ -373,13 +385,45 @@ int main(int argc, char **argv)
 	   (fabs(set_pose.pose.position.z - transformStamped.transform.translation.z) < TRESHOLD_WP))
 	{
 	  std::cout << "raggiunta la posizione stabilita" <<std::endl;
-	  //current_task = FIND_ROOMBA;
+	  current_task = FIND_ROOMBA;
 	}
 	break;
+	
+	
+      case FIND_ROOMBA:
+	
+	// drone rotates to find roomba
+	mov.set_command_second();
+	std::cout << "sto facendo ruotare il drone" <<std::endl;
+	std::cout << "fov x:"<< mov.fov_evaluation() <<std::endl;
+	
+	  // il drone ruota su se stesso  e si ferma quando il centro del suo field of view è vicino al roomba
+	 
+	  
+	   if(fabs(current_pose_iRobot.pose.pose.position.x - mov.fov_evaluation() ) < diff )
+	    
+	  {
+	         std::cout << "roomba vicino al fov" <<std::endl;
+		 current_task = FOLLOW_ROOMBA;
+	          
+	  }
+	
+	break;
+	
+	
+      case FOLLOW_ROOMBA: 
+	
+	mov.set_command();
+	std::cout << "sto inseguendo il mio roomba" <<std::endl;
+	std::cout << "comandi" <<mov.set_command() <<std::endl;
+	
+	
     }
 	  
-	  
+
+   
  /* if(task ==2)
+  * 
     
   {    
     
